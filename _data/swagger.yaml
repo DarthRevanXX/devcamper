@@ -1,0 +1,423 @@
+openapi: "3.0.2"
+info:
+  title: Social Graph
+  version: "1.0"
+  description: >
+    # Summary
+      APIs in this spec are for interacting with graph-db.
+
+    # Security
+      All the APIs in the spec are user scoped, meaning they need `user scoped
+      token`
+
+    # How are users created ?
+      All the `POST` APIs `auto create` the user if it does not exist in
+      graph-db. `GET` APIs return `404` for non-existing users.
+
+    # How are services created ?
+      Currently we `do not support` creating services through APIs. We believe
+      there is no need for such an API. Rakuten has limited number services, all
+      these services can be pre-configured in graph-db. This configuration
+      wouldn't need to change often
+
+    # What are acitivy/action/verbs ?
+      Verbs are not free format strings, these are predefined set of actions
+      that are available for a given service. Available set of actions are open
+      for expansion as and when deemed necessary. For a `book` service, example
+      verbs are `read`, `bought`, `rent`, `searched` etc...
+servers:
+  - url: https://api.server.test/api/v1
+paths:
+  /user/activity:
+    post:
+      summary: Post a user's activity
+      description: >
+        Adds the given list of activities or `verb`s to the user's `service`
+        subscription. </br></br> **Note**: Soical Graph doesn't verify any T&C
+        before registering the user's actvity against a particular {serviceId}.
+        </br></br> In the example below </br>
+        - `oneapp` : is the the `service` against which the verbs are registered
+        </br>
+        - `bookmark` : is the actvity/action/`verb` </br>
+        - `Post:https://abc-service.com` : is the content of the verb, is free
+        form string. Max length is 128 UTF-8 chars?
+      security:
+        - userBearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              example:
+                {
+                  oneapp:
+                    {
+                      bookmark: [Post:https://abc-service.com],
+                      favourite: [Post:AAA-A-AAAAA-AA-A],
+                    },
+                  ichiba:
+                    {
+                      view:
+                        [ProductId:XX-XXXX-XXXX-XX, ProductId:YY-YYYY-YYYY-YY],
+                      bought: [ProductId:YY-YYYY-YYYY-YY],
+                    },
+                }
+      responses:
+        "201":
+          description: Activity has been added to the user
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServiceError"
+    get:
+      summary: Get a user's activity
+      security:
+        - userBearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/serviceParam"
+        - $ref: "#/components/parameters/verbParam"
+      responses:
+        "200":
+          description: Activities map
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+              example:
+                {
+                  ichiba:
+                    {
+                      view:
+                        [ProductId:XX-XXXX-XXXX-XX, ProductId:YY-YYYY-YYYY-YY],
+                    },
+                }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServiceError"
+  /user/service:
+    get:
+      summary: Gets the list of services being used by this user
+      security:
+        - userBearerAuth: []
+      responses:
+        "200":
+          description: List of the user's services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+              example: [ichiba, oneapp]
+
+  /user/friend:
+    post:
+      summary: Adds relationship between two users
+      description: >
+        User in 'Bearer' token is the accepting user. The friendId is 
+        the target user.
+      security:
+        - userBearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  description: >
+                    Id of friend.
+                relationship:
+                  type: string
+                  enum: [friend, family]
+                  default: friend
+      responses:
+        "201":
+          description: Relationship has been added between two Users
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "400":
+          $ref: "#/components/responses/BadRequestError"
+        "500":
+          $ref: "#/components/responses/InternalServiceError"
+    get:
+      security:
+        - userBearerAuth: []
+      summary: Get a list of user's friend's easyIds
+      parameters:
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/limitParam"
+        - in: query
+          name: relationship
+          schema:
+            type: string
+            enum: [friend, family]
+          required: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+              example: [45, 98]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalServiceError"
+  /user/friend/service:
+    get:
+      summary: Get list of all services being used by friends
+      security:
+        - userBearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/easyIdListParam"
+        - $ref: "#/components/parameters/degreeParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+                  description: name of the service
+              example: [ichiba, oneapp]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServiceError"
+  /user/friend/activity:
+    get:
+      summary: >
+        Get friends most recent activities. Optionally filter by friend's
+        easyId, service, verb
+      security:
+        - userBearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/easyIdListParam"
+        - $ref: "#/components/parameters/offsetParam"
+        - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/serviceParam"
+        - $ref: "#/components/parameters/verbParam"
+        - $ref: "#/components/parameters/degreeParam"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  additionalProperties:
+                    type: array
+                    items:
+                      type: string
+              example:
+                {
+                  oneapp:
+                    {
+                      bookmark:
+                        [ProductId:XX-XXXX-XXXX-XX, ProductId:YY-YYYY-YYYY-YY],
+                    },
+                }
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalServiceError"
+
+components:
+  securitySchemes:
+    userBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: RToken
+      description: >
+        A valid user token, issued by `Auth` service, in the slim format.
+        example "@st.kid.exampletokenpayload"
+    clientBasicAuth:
+      type: http
+      scheme: basic
+  parameters:
+    serviceParam:
+      in: query
+      name: service
+      required: false
+      schema:
+        type: string
+      example: ichiba
+      description: Name of the service, for example ichiba
+    verbParam:
+      in: query
+      name: verb
+      required: false
+      schema:
+        type: string
+      example: view
+      description: Name of the verb, for example view
+    degreeParam:
+      in: query
+      name: degree
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+        maximum: 3
+      required: false
+      description: >
+        Number of degrees (or hops) away from the user
+    easyIdListParam:
+      in: query
+      name: easyId
+      explode: false
+      schema:
+        type: array
+        items:
+          type: string
+        example: [34, 92]
+      description: List of the friend's easyids
+      required: false
+    offsetParam:
+      in: query
+      name: offset
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+      description: >
+        The number of items to skip before starting to collect the result set.
+    limitParam:
+      in: query
+      name: limit
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+      description: The numbers of items to return.
+
+  responses:
+    UnauthorizedError:
+      description: Access token is missing or invalid
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Error"
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    example: unauthorized_error
+                    enum:
+                      - unauthorized_error
+    ConflictError:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Error"
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    example: conflict_error
+                    enum:
+                      - user_already_exists
+                      - user_already_subscribed
+    InternalServiceError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Error"
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    example: internal_server_error
+                    enum:
+                      - internal_server_error
+    NotFoundError:
+      description: Not Found Error
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Error"
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    example: servcie_not_found_error
+                    enum:
+                      - servcie_not_found_error
+    BadRequestError:
+      description: Bad Request Error
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/Error"
+              - type: object
+                properties:
+                  errorCode:
+                    type: string
+                    example: bad_request_error
+                    enum:
+                      - bad_request_error
+
+  schemas:
+    # Schema for error response body
+    Error:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          example: example_error_code
+        description:
+          type: string
+          example: Example error occured while processing example request
+          description: >
+            Human readable detailed description of the error, which could be
+            used for logs or error screen. Clients SHOULD NOT try to parse this
+            field, as it's value are not specified and may change without any
+            warning.
+      required:
+        - errorCode
+        - description
