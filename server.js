@@ -1,5 +1,6 @@
 const path = require("path");
 const express = require("express");
+const mongoSanitize = require("express-mongo-sanitize");
 const dotenv = require("dotenv");
 const morgan = require("morgan");
 const colors = require("colors");
@@ -7,6 +8,11 @@ const cookieParser = require("cookie-parser");
 const fileupload = require("express-fileupload");
 const errorHandler = require("./middleware/error");
 const connectDB = require("./config/db");
+const helmet = require("helmet");
+const xss = require("xss-clean");
+const rateLimit = require("express-rate-limit");
+const hpp = require("hpp");
+const cors = require("cors");
 
 // Load env vars
 dotenv.config({
@@ -24,8 +30,7 @@ const users = require("./routes/users");
 const reviews = require("./routes/reviews");
 
 const app = express();
-
-// Body parser
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // Cookie parser
@@ -39,8 +44,31 @@ if (process.env.NODE_ENV === "development") {
 // File uploading
 app.use(fileupload());
 
+// To remove data, use:
+app.use(mongoSanitize());
+
+// Set security headers
+app.use(helmet());
+
+/* prevent cross-site scripting */
+app.use(xss());
+
 // Set static folder
 app.use(express.static(path.join(__dirname, "public")));
+
+// rate-limiter
+
+const limiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+});
+
+app.use(limiter);
+
+app.use(hpp());
+
+// Enable cors
+app.use(cors());
 
 // Mount routers
 app.use("/api/v1/bootcamps", bootcamps);
